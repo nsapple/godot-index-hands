@@ -89,10 +89,10 @@ bool SteamVRFingers::initialize_steamvr() {
     UtilityFunctions::print("[SteamVR Fingers] ✓ HMD is present");
 
     // Initialize OpenVR
-    // Use VRApplication_Overlay to get full skeletal input without needing VR rendering
-    UtilityFunctions::print("[SteamVR Fingers] Initializing OpenVR (VRApplication_Overlay)...");
+    // Use VRApplication_Utility for monitoring/utility apps that need input without rendering
+    UtilityFunctions::print("[SteamVR Fingers] Initializing OpenVR (VRApplication_Utility)...");
     vr::EVRInitError init_error = vr::VRInitError_None;
-    vr_system = vr::VR_Init(&init_error, vr::VRApplication_Overlay);
+    vr_system = vr::VR_Init(&init_error, vr::VRApplication_Utility);
 
     if (init_error != vr::VRInitError_None) {
         UtilityFunctions::push_error(String("[SteamVR Fingers] ERROR: VR_Init failed with error code: ") + String::num_int64(init_error));
