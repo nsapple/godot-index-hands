@@ -1,0 +1,28 @@
+{
+  "name": "SteamVR Fingers - Valve Index Controllers",
+  "controller_type": "knuckles",
+  "bindings": {
+    "/actions/finger_tracking": {
+      "sources": [
+        {
+          "path": "/user/hand/left/input/skeleton/left",
+          "mode": "skeleton",
+          "inputs": {
+            "skeleton": {
+              "output": "/actions/finger_tracking/in/left_hand_skeleton"
+            }
+          }
+        },
+        {
+          "path": "/user/hand/right/input/skeleton/right",
+          "mode": "skeleton",
+          "inputs": {
+            "skeleton": {
+              "output": "/actions/finger_tracking/in/right_hand_skeleton"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

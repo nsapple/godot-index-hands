@@ -1,0 +1,268 @@
+#include "steamvr_fingers.h"
+#include <godot_cpp/core/class_db.hpp>
+#include <godot_cpp/variant/utility_functions.hpp>
+#include <godot_cpp/classes/os.hpp>
+
+using namespace godot;
+
+SteamVRFingers::SteamVRFingers() {
+    vr_system = nullptr;
+    vr_input = nullptr;
+    is_initialized = false;
+    steamvr_available = false;
+
+    action_set_handle = vr::k_ulInvalidActionSetHandle;
+    left_hand_skeleton_action = vr::k_ulInvalidActionHandle;
+    right_hand_skeleton_action = vr::k_ulInvalidActionHandle;
+
+    reset_finger_values();
+}
+
+SteamVRFingers::~SteamVRFingers() {
+    shutdown_steamvr();
+}
+
+void SteamVRFingers::_bind_methods() {
+    // Initialization methods
+    ClassDB::bind_method(D_METHOD("initialize_steamvr"), &SteamVRFingers::initialize_steamvr);
+    ClassDB::bind_method(D_METHOD("shutdown_steamvr"), &SteamVRFingers::shutdown_steamvr);
+    ClassDB::bind_method(D_METHOD("is_steamvr_initialized"), &SteamVRFingers::is_steamvr_initialized);
+
+    // Left hand getters
+    ClassDB::bind_method(D_METHOD("get_left_thumb_curl"), &SteamVRFingers::get_left_thumb_curl);
+    ClassDB::bind_method(D_METHOD("get_left_index_curl"), &SteamVRFingers::get_left_index_curl);
+    ClassDB::bind_method(D_METHOD("get_left_middle_curl"), &SteamVRFingers::get_left_middle_curl);
+    ClassDB::bind_method(D_METHOD("get_left_ring_curl"), &SteamVRFingers::get_left_ring_curl);
+    ClassDB::bind_method(D_METHOD("get_left_pinky_curl"), &SteamVRFingers::get_left_pinky_curl);
+
+    // Right hand getters
+    ClassDB::bind_method(D_METHOD("get_right_thumb_curl"), &SteamVRFingers::get_right_thumb_curl);
+    ClassDB::bind_method(D_METHOD("get_right_index_curl"), &SteamVRFingers::get_right_index_curl);
+    ClassDB::bind_method(D_METHOD("get_right_middle_curl"), &SteamVRFingers::get_right_middle_curl);
+    ClassDB::bind_method(D_METHOD("get_right_ring_curl"), &SteamVRFingers::get_right_ring_curl);
+    ClassDB::bind_method(D_METHOD("get_right_pinky_curl"), &SteamVRFingers::get_right_pinky_curl);
+}
+
+void SteamVRFingers::_ready() {
+    UtilityFunctions::print("[SteamVR Fingers] Initializing...");
+    initialize_steamvr();
+}
+
+void SteamVRFingers::_process(double delta) {
+    if (is_initialized && steamvr_available) {
+        update_finger_curls();
+    }
+}
+
+void SteamVRFingers::_exit_tree() {
+    shutdown_steamvr();
+}
+
+bool SteamVRFingers::initialize_steamvr() {
+    if (is_initialized) {
+        UtilityFunctions::print("[SteamVR Fingers] Already initialized");
+        return true;
+    }
+
+    UtilityFunctions::print("[SteamVR Fingers] Starting SteamVR initialization...");
+
+    // Check if VR runtime is installed
+    if (!vr::VR_IsRuntimeInstalled()) {
+        UtilityFunctions::push_error("[SteamVR Fingers] ERROR: SteamVR runtime not installed!");
+        reset_finger_values();
+        return false;
+    }
+
+    // Check if HMD is present
+    if (!vr::VR_IsHmdPresent()) {
+        UtilityFunctions::push_warning("[SteamVR Fingers] WARNING: No HMD detected. Finger tracking will return 0.0 values.");
+        reset_finger_values();
+        return false;
+    }
+
+    // Initialize OpenVR
+    vr::EVRInitError init_error = vr::VRInitError_None;
+    vr_system = vr::VR_Init(&init_error, vr::VRApplication_Background);
+
+    if (init_error != vr::VRInitError_None) {
+        UtilityFunctions::push_error(String("[SteamVR Fingers] ERROR: Failed to initialize OpenVR: ") +
+                                     String(vr::VR_GetVRInitErrorAsEnglishDescription(init_error)));
+        vr_system = nullptr;
+        reset_finger_values();
+        return false;
+    }
+
+    UtilityFunctions::print("[SteamVR Fingers] OpenVR initialized successfully");
+
+    // Get input interface
+    vr_input = vr::VRInput();
+    if (!vr_input) {
+        UtilityFunctions::push_error("[SteamVR Fingers] ERROR: Failed to get VRInput interface");
+        shutdown_steamvr();
+        return false;
+    }
+
+    // Get action manifest path
+    String manifest_path = get_action_manifest_path();
+    UtilityFunctions::print(String("[SteamVR Fingers] Loading action manifest from: ") + manifest_path);
+
+    // Set action manifest
+    vr::EVRInputError input_error = vr_input->SetActionManifestPath(manifest_path.utf8().get_data());
+    if (input_error != vr::VRInputError_None) {
+        UtilityFunctions::push_error(String("[SteamVR Fingers] ERROR: Failed to set action manifest (error ") +
+                                     String::num_int64(input_error) + String(")"));
+        UtilityFunctions::push_error(String("[SteamVR Fingers] Make sure the action manifest exists at: ") + manifest_path);
+        shutdown_steamvr();
+        return false;
+    }
+
+    // Get action set handle
+    input_error = vr_input->GetActionSetHandle("/actions/finger_tracking", &action_set_handle);
+    if (input_error != vr::VRInputError_None) {
+        UtilityFunctions::push_error("[SteamVR Fingers] ERROR: Failed to get action set handle");
+        shutdown_steamvr();
+        return false;
+    }
+
+    // Get skeleton action handles
+    input_error = vr_input->GetActionHandle("/actions/finger_tracking/in/left_hand_skeleton", &left_hand_skeleton_action);
+    if (input_error != vr::VRInputError_None) {
+        UtilityFunctions::push_error("[SteamVR Fingers] ERROR: Failed to get left hand skeleton action handle");
+        shutdown_steamvr();
+        return false;
+    }
+
+    input_error = vr_input->GetActionHandle("/actions/finger_tracking/in/right_hand_skeleton", &right_hand_skeleton_action);
+    if (input_error != vr::VRInputError_None) {
+        UtilityFunctions::push_error("[SteamVR Fingers] ERROR: Failed to get right hand skeleton action handle");
+        shutdown_steamvr();
+        return false;
+    }
+
+    is_initialized = true;
+    steamvr_available = true;
+    UtilityFunctions::print("[SteamVR Fingers] ✓ Initialization complete! Finger tracking is active.");
+
+    return true;
+}
+
+void SteamVRFingers::shutdown_steamvr() {
+    if (!is_initialized) {
+        return;
+    }
+
+    UtilityFunctions::print("[SteamVR Fingers] Shutting down...");
+
+    if (vr_system) {
+        vr::VR_Shutdown();
+        vr_system = nullptr;
+        vr_input = nullptr;
+    }
+
+    is_initialized = false;
+    steamvr_available = false;
+    reset_finger_values();
+
+    UtilityFunctions::print("[SteamVR Fingers] Shutdown complete");
+}
+
+void SteamVRFingers::reset_finger_values() {
+    left_thumb_curl = 0.0f;
+    left_index_curl = 0.0f;
+    left_middle_curl = 0.0f;
+    left_ring_curl = 0.0f;
+    left_pinky_curl = 0.0f;
+
+    right_thumb_curl = 0.0f;
+    right_index_curl = 0.0f;
+    right_middle_curl = 0.0f;
+    right_ring_curl = 0.0f;
+    right_pinky_curl = 0.0f;
+}
+
+String SteamVRFingers::get_action_manifest_path() {
+    // Get the path to the action manifest relative to the executable
+    String base_path = OS::get_singleton()->get_executable_path().get_base_dir();
+    String manifest_path = base_path + "/addons/steamvr_fingers/actions/action_manifest.json";
+
+    // Check if running from editor (demo folder)
+    if (!OS::get_singleton()->has_feature("editor")) {
+        // Running as exported game
+        manifest_path = base_path + "/addons/steamvr_fingers/actions/action_manifest.json";
+    } else {
+        // Running in editor - use demo project path
+        manifest_path = base_path + "/../addons/steamvr_fingers/actions/action_manifest.json";
+    }
+
+    return manifest_path;
+}
+
+void SteamVRFingers::update_finger_curls() {
+    if (!vr_input || !is_initialized) {
+        return;
+    }
+
+    // Update action state
+    vr::VRActiveActionSet_t active_action_set = {};
+    active_action_set.ulActionSet = action_set_handle;
+    vr::EVRInputError error = vr_input->UpdateActionState(&active_action_set, sizeof(vr::VRActiveActionSet_t), 1);
+
+    if (error != vr::VRInputError_None) {
+        return;
+    }
+
+    // Update left hand
+    calculate_finger_curl_from_skeleton(left_hand_skeleton_action,
+                                        left_thumb_curl, left_index_curl, left_middle_curl,
+                                        left_ring_curl, left_pinky_curl);
+
+    // Update right hand
+    calculate_finger_curl_from_skeleton(right_hand_skeleton_action,
+                                        right_thumb_curl, right_index_curl, right_middle_curl,
+                                        right_ring_curl, right_pinky_curl);
+}
+
+void SteamVRFingers::calculate_finger_curl_from_skeleton(vr::VRActionHandle_t action_handle,
+                                                          float& thumb, float& index, float& middle,
+                                                          float& ring, float& pinky) {
+    if (!vr_input) {
+        return;
+    }
+
+    // Get skeletal data
+    vr::InputSkeletalActionData_t skeletal_data = {};
+    vr::EVRInputError error = vr_input->GetSkeletalActionData(
+        action_handle,
+        &skeletal_data,
+        sizeof(skeletal_data)
+    );
+
+    if (error != vr::VRInputError_None || !skeletal_data.bActive) {
+        // No valid data - keep previous values or reset to 0
+        return;
+    }
+
+    // Get finger curl data (using curl summary data for simplicity)
+    vr::VRSkeletalSummaryData_t summary_data = {};
+    error = vr_input->GetSkeletalSummaryData(
+        action_handle,
+        vr::VRSummaryType_FromAnimation,
+        &summary_data
+    );
+
+    if (error == vr::VRInputError_None) {
+        // Map finger curl values (already normalized 0.0 to 1.0)
+        thumb = summary_data.flFingerCurl[vr::VRFinger_Thumb];
+        index = summary_data.flFingerCurl[vr::VRFinger_Index];
+        middle = summary_data.flFingerCurl[vr::VRFinger_Middle];
+        ring = summary_data.flFingerCurl[vr::VRFinger_Ring];
+        pinky = summary_data.flFingerCurl[vr::VRFinger_Pinky];
+
+        // Clamp values to ensure they're in valid range
+        thumb = CLAMP(thumb, 0.0f, 1.0f);
+        index = CLAMP(index, 0.0f, 1.0f);
+        middle = CLAMP(middle, 0.0f, 1.0f);
+        ring = CLAMP(ring, 0.0f, 1.0f);
+        pinky = CLAMP(pinky, 0.0f, 1.0f);
+    }
+}

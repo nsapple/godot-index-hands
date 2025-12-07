@@ -1,0 +1,37 @@
+{
+  "version": "1.0.0",
+  "name": "SteamVR Fingers",
+  "description": "Finger tracking for Valve Index controllers in Godot 4.3",
+  "action_sets": [
+    {
+      "name": "/actions/finger_tracking",
+      "usage": "leftright"
+    }
+  ],
+  "actions": [
+    {
+      "name": "/actions/finger_tracking/in/left_hand_skeleton",
+      "type": "skeleton",
+      "skeleton": "/skeleton/hand/left"
+    },
+    {
+      "name": "/actions/finger_tracking/in/right_hand_skeleton",
+      "type": "skeleton",
+      "skeleton": "/skeleton/hand/right"
+    }
+  ],
+  "default_bindings": [
+    {
+      "controller_type": "knuckles",
+      "binding_url": "knuckles_bindings.json"
+    }
+  ],
+  "localization": [
+    {
+      "language_tag": "en_US",
+      "/actions/finger_tracking": "Finger Tracking",
+      "/actions/finger_tracking/in/left_hand_skeleton": "Left Hand Skeleton",
+      "/actions/finger_tracking/in/right_hand_skeleton": "Right Hand Skeleton"
+    }
+  ]
+}

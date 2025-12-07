@@ -1,0 +1,18 @@
+[configuration]
+
+entry_symbol = "steamvr_fingers_library_init"
+compatibility_minimum = "4.3"
+
+[libraries]
+
+windows.debug.x86_64 = "res://addons/steamvr_fingers/bin/libsteamvr_fingers.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "res://addons/steamvr_fingers/bin/libsteamvr_fingers.windows.template_release.x86_64.dll"
+linux.debug.x86_64 = "res://addons/steamvr_fingers/bin/libsteamvr_fingers.linux.template_debug.x86_64.so"
+linux.release.x86_64 = "res://addons/steamvr_fingers/bin/libsteamvr_fingers.linux.template_release.x86_64.so"
+
+[dependencies]
+
+windows.debug.x86_64 = {"res://addons/steamvr_fingers/bin/openvr_api.dll": ""}
+windows.release.x86_64 = {"res://addons/steamvr_fingers/bin/openvr_api.dll": ""}
+linux.debug.x86_64 = {"res://addons/steamvr_fingers/bin/libopenvr_api.so": ""}
+linux.release.x86_64 = {"res://addons/steamvr_fingers/bin/libopenvr_api.so": ""}

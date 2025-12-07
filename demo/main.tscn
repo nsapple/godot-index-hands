@@ -1,0 +1,154 @@
+[gd_scene load_steps=2 format=3 uid="uid://b1q2n3g4h5i6"]
+
+[ext_resource type="Script" path="res://main.gd" id="1"]
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="ColorRect" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.15, 0.15, 0.15, 1)
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="TitleLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+text = "SteamVR Valve Index Finger Tracking Demo"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="TitleLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 32
+text = "SteamVR Valve Index Finger Tracking"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="StatusLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 20
+text = "Initializing..."
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="LeftHandPanel" type="PanelContainer" parent="VBoxContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LeftHandVBox" type="VBoxContainer" parent="VBoxContainer/HBoxContainer/LeftHandPanel"]
+layout_mode = 2
+
+[node name="LeftHandTitle" type="Label" parent="VBoxContainer/HBoxContainer/LeftHandPanel/LeftHandVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "LEFT HAND"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer/HBoxContainer/LeftHandPanel/LeftHandVBox"]
+layout_mode = 2
+
+[node name="LeftThumb" type="Label" parent="VBoxContainer/HBoxContainer/LeftHandPanel/LeftHandVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Left Thumb: 0.00"
+
+[node name="LeftIndex" type="Label" parent="VBoxContainer/HBoxContainer/LeftHandPanel/LeftHandVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Left Index: 0.00"
+
+[node name="LeftMiddle" type="Label" parent="VBoxContainer/HBoxContainer/LeftHandPanel/LeftHandVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Left Middle: 0.00"
+
+[node name="LeftRing" type="Label" parent="VBoxContainer/HBoxContainer/LeftHandPanel/LeftHandVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Left Ring: 0.00"
+
+[node name="LeftPinky" type="Label" parent="VBoxContainer/HBoxContainer/LeftHandPanel/LeftHandVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Left Pinky: 0.00"
+
+[node name="VSeparator" type="VSeparator" parent="VBoxContainer/HBoxContainer"]
+layout_mode = 2
+
+[node name="RightHandPanel" type="PanelContainer" parent="VBoxContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="RightHandVBox" type="VBoxContainer" parent="VBoxContainer/HBoxContainer/RightHandPanel"]
+layout_mode = 2
+
+[node name="RightHandTitle" type="Label" parent="VBoxContainer/HBoxContainer/RightHandPanel/RightHandVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "RIGHT HAND"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer/HBoxContainer/RightHandPanel/RightHandVBox"]
+layout_mode = 2
+
+[node name="RightThumb" type="Label" parent="VBoxContainer/HBoxContainer/RightHandPanel/RightHandVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Right Thumb: 0.00"
+
+[node name="RightIndex" type="Label" parent="VBoxContainer/HBoxContainer/RightHandPanel/RightHandVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Right Index: 0.00"
+
+[node name="RightMiddle" type="Label" parent="VBoxContainer/HBoxContainer/RightHandPanel/RightHandVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Right Middle: 0.00"
+
+[node name="RightRing" type="Label" parent="VBoxContainer/HBoxContainer/RightHandPanel/RightHandVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Right Ring: 0.00"
+
+[node name="RightPinky" type="Label" parent="VBoxContainer/HBoxContainer/RightHandPanel/RightHandVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Right Pinky: 0.00"
+
+[node name="HSeparator2" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="InfoLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "Values: 0.0 = Open Hand | 1.0 = Closed Fist
+Colors: Green = Open | Yellow = Partial | Red = Closed"
+horizontal_alignment = 1
+vertical_alignment = 1

@@ -1,0 +1,47 @@
+# Build artifacts
+*.o
+*.os
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+*.exe
+
+# SCons
+.sconsign.dblite
+.scons_env.json
+*.pyc
+
+# Build directories
+bin/
+obj/
+
+# Godot
+.godot/
+*.import
+*.translation
+.mono/
+data_*/
+
+# IDE
+.vs/
+.vscode/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.suo
+*.user
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.log
+*.tmp
