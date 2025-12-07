@@ -41,7 +41,7 @@ private:
     void update_finger_curls();
     void calculate_finger_curl_from_skeleton(vr::VRActionHandle_t action_handle,
                                               float& thumb, float& index, float& middle,
-                                              float& ring, float& pinky);
+                                              float& ring, float& pinky, bool print_debug = false);
     void reset_finger_values();
     String get_action_manifest_path();
 
