@@ -2,6 +2,8 @@
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <godot_cpp/classes/os.hpp>
+#include <godot_cpp/classes/project_settings.hpp>
+#include <godot_cpp/classes/dir_access.hpp>
 
 using namespace godot;
 
@@ -181,17 +183,13 @@ void SteamVRFingers::reset_finger_values() {
 }
 
 String SteamVRFingers::get_action_manifest_path() {
-    // Get the path to the action manifest relative to the executable
-    String base_path = OS::get_singleton()->get_executable_path().get_base_dir();
-    String manifest_path = base_path + "/addons/steamvr_fingers/actions/action_manifest.json";
+    // Use project path for the action manifest (works in both editor and exported)
+    String res_path = "res://addons/steamvr_fingers/actions/action_manifest.json";
+    String manifest_path = ProjectSettings::get_singleton()->globalize_path(res_path);
 
-    // Check if running from editor (demo folder)
-    if (!OS::get_singleton()->has_feature("editor")) {
-        // Running as exported game
-        manifest_path = base_path + "/addons/steamvr_fingers/actions/action_manifest.json";
-    } else {
-        // Running in editor - use demo project path
-        manifest_path = base_path + "/../addons/steamvr_fingers/actions/action_manifest.json";
+    // Verify the file exists
+    if (!DirAccess::exists(manifest_path.get_base_dir())) {
+        UtilityFunctions::push_error(String("[SteamVR Fingers] Action manifest directory not found: ") + manifest_path.get_base_dir());
     }
 
     return manifest_path;
@@ -208,6 +206,11 @@ void SteamVRFingers::update_finger_curls() {
     vr::EVRInputError error = vr_input->UpdateActionState(&active_action_set, sizeof(vr::VRActiveActionSet_t), 1);
 
     if (error != vr::VRInputError_None) {
+        static bool update_error_printed = false;
+        if (!update_error_printed) {
+            UtilityFunctions::push_warning(String("[SteamVR Fingers] UpdateActionState error: ") + String::num_int64(error));
+            update_error_printed = true;
+        }
         return;
     }
 
@@ -237,8 +240,21 @@ void SteamVRFingers::calculate_finger_curl_from_skeleton(vr::VRActionHandle_t ac
         sizeof(skeletal_data)
     );
 
-    if (error != vr::VRInputError_None || !skeletal_data.bActive) {
-        // No valid data - keep previous values or reset to 0
+    if (error != vr::VRInputError_None) {
+        static bool error_printed = false;
+        if (!error_printed) {
+            UtilityFunctions::push_warning(String("[SteamVR Fingers] GetSkeletalActionData error: ") + String::num_int64(error));
+            error_printed = true;
+        }
+        return;
+    }
+
+    if (!skeletal_data.bActive) {
+        static bool inactive_printed = false;
+        if (!inactive_printed) {
+            UtilityFunctions::push_warning("[SteamVR Fingers] Skeletal action is not active - controllers may not be detected");
+            inactive_printed = true;
+        }
         return;
     }
 
@@ -250,19 +266,26 @@ void SteamVRFingers::calculate_finger_curl_from_skeleton(vr::VRActionHandle_t ac
         &summary_data
     );
 
-    if (error == vr::VRInputError_None) {
-        // Map finger curl values (already normalized 0.0 to 1.0)
-        thumb = summary_data.flFingerCurl[vr::VRFinger_Thumb];
-        index = summary_data.flFingerCurl[vr::VRFinger_Index];
-        middle = summary_data.flFingerCurl[vr::VRFinger_Middle];
-        ring = summary_data.flFingerCurl[vr::VRFinger_Ring];
-        pinky = summary_data.flFingerCurl[vr::VRFinger_Pinky];
-
-        // Clamp values to ensure they're in valid range
-        thumb = CLAMP(thumb, 0.0f, 1.0f);
-        index = CLAMP(index, 0.0f, 1.0f);
-        middle = CLAMP(middle, 0.0f, 1.0f);
-        ring = CLAMP(ring, 0.0f, 1.0f);
-        pinky = CLAMP(pinky, 0.0f, 1.0f);
+    if (error != vr::VRInputError_None) {
+        static bool summary_error_printed = false;
+        if (!summary_error_printed) {
+            UtilityFunctions::push_warning(String("[SteamVR Fingers] GetSkeletalSummaryData error: ") + String::num_int64(error));
+            summary_error_printed = true;
+        }
+        return;
     }
+
+    // Map finger curl values (already normalized 0.0 to 1.0)
+    thumb = summary_data.flFingerCurl[vr::VRFinger_Thumb];
+    index = summary_data.flFingerCurl[vr::VRFinger_Index];
+    middle = summary_data.flFingerCurl[vr::VRFinger_Middle];
+    ring = summary_data.flFingerCurl[vr::VRFinger_Ring];
+    pinky = summary_data.flFingerCurl[vr::VRFinger_Pinky];
+
+    // Clamp values to ensure they're in valid range
+    thumb = CLAMP(thumb, 0.0f, 1.0f);
+    index = CLAMP(index, 0.0f, 1.0f);
+    middle = CLAMP(middle, 0.0f, 1.0f);
+    ring = CLAMP(ring, 0.0f, 1.0f);
+    pinky = CLAMP(pinky, 0.0f, 1.0f);
 }
