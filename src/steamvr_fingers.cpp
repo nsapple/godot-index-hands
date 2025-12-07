@@ -3,7 +3,7 @@
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <godot_cpp/classes/os.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
-#include <godot_cpp/classes/dir_access.hpp>
+#include <godot_cpp/classes/file_access.hpp>
 
 using namespace godot;
 
@@ -188,8 +188,8 @@ String SteamVRFingers::get_action_manifest_path() {
     String manifest_path = ProjectSettings::get_singleton()->globalize_path(res_path);
 
     // Verify the file exists
-    if (!DirAccess::exists(manifest_path.get_base_dir())) {
-        UtilityFunctions::push_error(String("[SteamVR Fingers] Action manifest directory not found: ") + manifest_path.get_base_dir());
+    if (!FileAccess::file_exists(manifest_path)) {
+        UtilityFunctions::push_error(String("[SteamVR Fingers] Action manifest file not found: ") + manifest_path);
     }
 
     return manifest_path;
