@@ -1,35 +1,27 @@
 #include "steamvr_fingers.h"
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
-#include <godot_cpp/classes/os.hpp>
-#include <godot_cpp/classes/project_settings.hpp>
-#include <godot_cpp/classes/file_access.hpp>
+#include <godot_cpp/classes/xr_interface.hpp>
 
 using namespace godot;
 
 SteamVRFingers::SteamVRFingers() {
-    vr_system = nullptr;
-    vr_input = nullptr;
-    vr_compositor = nullptr;
+    xr_server = nullptr;
     is_initialized = false;
-    steamvr_available = false;
-
-    action_set_handle = vr::k_ulInvalidActionSetHandle;
-    left_hand_skeleton_action = vr::k_ulInvalidActionHandle;
-    right_hand_skeleton_action = vr::k_ulInvalidActionHandle;
+    xr_available = false;
 
     reset_finger_values();
 }
 
 SteamVRFingers::~SteamVRFingers() {
-    shutdown_steamvr();
+    shutdown_xr();
 }
 
 void SteamVRFingers::_bind_methods() {
     // Initialization methods
-    ClassDB::bind_method(D_METHOD("initialize_steamvr"), &SteamVRFingers::initialize_steamvr);
-    ClassDB::bind_method(D_METHOD("shutdown_steamvr"), &SteamVRFingers::shutdown_steamvr);
-    ClassDB::bind_method(D_METHOD("is_steamvr_initialized"), &SteamVRFingers::is_steamvr_initialized);
+    ClassDB::bind_method(D_METHOD("initialize_xr"), &SteamVRFingers::initialize_xr);
+    ClassDB::bind_method(D_METHOD("shutdown_xr"), &SteamVRFingers::shutdown_xr);
+    ClassDB::bind_method(D_METHOD("is_xr_initialized"), &SteamVRFingers::is_xr_initialized);
 
     // Left hand getters
     ClassDB::bind_method(D_METHOD("get_left_thumb_curl"), &SteamVRFingers::get_left_thumb_curl);
@@ -47,206 +39,93 @@ void SteamVRFingers::_bind_methods() {
 }
 
 void SteamVRFingers::_ready() {
-    UtilityFunctions::print("[SteamVR Fingers] Initializing...");
-    initialize_steamvr();
+    UtilityFunctions::print("[SteamVR Fingers] Initializing using Godot's native XR system...");
+    initialize_xr();
 }
 
 void SteamVRFingers::_process(double delta) {
-    if (is_initialized && steamvr_available) {
-        // CRITICAL: Synchronize with compositor and get poses
-        // This is what keeps the VR session alive and activates input!
-        if (vr_compositor) {
-            vr::TrackedDevicePose_t poses[vr::k_unMaxTrackedDeviceCount];
-            vr::TrackedDevicePose_t gamePoses[vr::k_unMaxTrackedDeviceCount];
-
-            // WaitGetPoses is the KEY call - it synchronizes with compositor frame timing
-            // and keeps the session active so skeletal input works
-            vr::EVRCompositorError compositor_error = vr_compositor->WaitGetPoses(
-                poses, vr::k_unMaxTrackedDeviceCount,
-                gamePoses, vr::k_unMaxTrackedDeviceCount
-            );
-
-            // Now submit frames (null textures are fine for minimal overhead)
-            vr::Texture_t texture = {};
-            texture.handle = nullptr;
-            texture.eType = vr::TextureType_DirectX;
-            texture.eColorSpace = vr::ColorSpace_Auto;
-
-            vr_compositor->Submit(vr::Eye_Left, &texture);
-            vr_compositor->Submit(vr::Eye_Right, &texture);
-        }
-
+    if (is_initialized && xr_available) {
         update_finger_curls();
     }
 }
 
 void SteamVRFingers::_exit_tree() {
-    shutdown_steamvr();
+    shutdown_xr();
 }
 
-bool SteamVRFingers::initialize_steamvr() {
+bool SteamVRFingers::initialize_xr() {
     if (is_initialized) {
         UtilityFunctions::print("[SteamVR Fingers] Already initialized");
         return true;
     }
 
     UtilityFunctions::print("[SteamVR Fingers] ========================================");
-    UtilityFunctions::print("[SteamVR Fingers] Starting SteamVR initialization...");
+    UtilityFunctions::print("[SteamVR Fingers] Starting XR hand tracking initialization...");
     UtilityFunctions::print("[SteamVR Fingers] ========================================");
 
-    // Check if VR runtime is installed
-    UtilityFunctions::print("[SteamVR Fingers] Checking if VR runtime is installed...");
-    if (!vr::VR_IsRuntimeInstalled()) {
-        UtilityFunctions::push_error("[SteamVR Fingers] ERROR: SteamVR runtime not installed!");
-        reset_finger_values();
+    // Get XRServer singleton
+    xr_server = XRServer::get_singleton();
+    if (!xr_server) {
+        UtilityFunctions::push_error("[SteamVR Fingers] ERROR: XRServer singleton not available");
         return false;
     }
-    UtilityFunctions::print("[SteamVR Fingers] ✓ VR runtime is installed");
+    UtilityFunctions::print("[SteamVR Fingers] ✓ XRServer obtained");
 
-    // Check if HMD is present
-    UtilityFunctions::print("[SteamVR Fingers] Checking if HMD is present...");
-    if (!vr::VR_IsHmdPresent()) {
-        UtilityFunctions::push_warning("[SteamVR Fingers] WARNING: No HMD detected. Finger tracking will return 0.0 values.");
-        reset_finger_values();
+    // Get the primary XR interface (should be OpenXR from your logs)
+    Ref<XRInterface> xr_interface = xr_server->get_primary_interface();
+    if (!xr_interface.is_valid()) {
+        UtilityFunctions::push_warning("[SteamVR Fingers] WARNING: No active XR interface. Make sure VR is enabled in your project.");
         return false;
     }
-    UtilityFunctions::print("[SteamVR Fingers] ✓ HMD is present");
 
-    // Initialize OpenVR
-    // Use VRApplication_Scene to get full skeletal input with compositor submission
-    UtilityFunctions::print("[SteamVR Fingers] Initializing OpenVR (VRApplication_Scene)...");
-    vr::EVRInitError init_error = vr::VRInitError_None;
-    vr_system = vr::VR_Init(&init_error, vr::VRApplication_Scene);
+    String interface_name = xr_interface->get_name();
+    UtilityFunctions::print(String("[SteamVR Fingers] ✓ Active XR interface: ") + interface_name);
 
-    if (init_error != vr::VRInitError_None) {
-        UtilityFunctions::push_error(String("[SteamVR Fingers] ERROR: VR_Init failed with error code: ") + String::num_int64(init_error));
-        UtilityFunctions::push_error(String("[SteamVR Fingers] ERROR: ") +
-                                     String(vr::VR_GetVRInitErrorAsEnglishDescription(init_error)));
-        vr_system = nullptr;
-        reset_finger_values();
+    // Get hand trackers
+    left_hand_tracker = xr_server->get_tracker("/user/hand_tracker/left");
+    right_hand_tracker = xr_server->get_tracker("/user/hand_tracker/right");
+
+    if (!left_hand_tracker.is_valid() && !right_hand_tracker.is_valid()) {
+        UtilityFunctions::push_warning("[SteamVR Fingers] WARNING: No hand trackers found. Hand tracking may not be enabled.");
+        UtilityFunctions::push_warning("[SteamVR Fingers] Make sure hand tracking is enabled in SteamVR settings.");
         return false;
     }
-    UtilityFunctions::print("[SteamVR Fingers] ✓ OpenVR initialized successfully");
 
-    // Get input interface
-    UtilityFunctions::print("[SteamVR Fingers] Getting VRInput interface...");
-    vr_input = vr::VRInput();
-    if (!vr_input) {
-        UtilityFunctions::push_error("[SteamVR Fingers] ERROR: Failed to get VRInput interface (returned nullptr)");
-        shutdown_steamvr();
-        return false;
+    if (left_hand_tracker.is_valid()) {
+        UtilityFunctions::print("[SteamVR Fingers] ✓ Left hand tracker obtained");
+    } else {
+        UtilityFunctions::push_warning("[SteamVR Fingers] WARNING: Left hand tracker not available");
     }
-    UtilityFunctions::print("[SteamVR Fingers] ✓ VRInput interface obtained");
 
-    // Get compositor interface (required for skeletal input to activate)
-    UtilityFunctions::print("[SteamVR Fingers] Getting VRCompositor interface...");
-    vr_compositor = vr::VRCompositor();
-    if (!vr_compositor) {
-        UtilityFunctions::push_error("[SteamVR Fingers] ERROR: Failed to get VRCompositor interface (returned nullptr)");
-        shutdown_steamvr();
-        return false;
+    if (right_hand_tracker.is_valid()) {
+        UtilityFunctions::print("[SteamVR Fingers] ✓ Right hand tracker obtained");
+    } else {
+        UtilityFunctions::push_warning("[SteamVR Fingers] WARNING: Right hand tracker not available");
     }
-    UtilityFunctions::print("[SteamVR Fingers] ✓ VRCompositor interface obtained");
-
-    // Get action manifest path
-    String manifest_path = get_action_manifest_path();
-    UtilityFunctions::print(String("[SteamVR Fingers] Action manifest path: ") + manifest_path);
-    UtilityFunctions::print(String("[SteamVR Fingers] Calling SetActionManifestPath..."));
-
-    // Set action manifest
-    vr::EVRInputError input_error = vr_input->SetActionManifestPath(manifest_path.utf8().get_data());
-    UtilityFunctions::print(String("[SteamVR Fingers] SetActionManifestPath returned error code: ") + String::num_int64(input_error));
-
-    if (input_error != vr::VRInputError_None) {
-        UtilityFunctions::push_error(String("[SteamVR Fingers] ERROR: Failed to set action manifest (error ") +
-                                     String::num_int64(input_error) + String(")"));
-        UtilityFunctions::push_error(String("[SteamVR Fingers] Make sure the action manifest exists at: ") + manifest_path);
-        shutdown_steamvr();
-        return false;
-    }
-    UtilityFunctions::print("[SteamVR Fingers] ✓ Action manifest set successfully");
-
-    // Get action set handle
-    UtilityFunctions::print("[SteamVR Fingers] Getting action set handle for '/actions/finger_tracking'...");
-    input_error = vr_input->GetActionSetHandle("/actions/finger_tracking", &action_set_handle);
-    UtilityFunctions::print(String("[SteamVR Fingers] GetActionSetHandle returned error code: ") + String::num_int64(input_error));
-    UtilityFunctions::print(String("[SteamVR Fingers] Action set handle value: ") + String::num_uint64(action_set_handle));
-
-    if (input_error != vr::VRInputError_None) {
-        UtilityFunctions::push_error("[SteamVR Fingers] ERROR: Failed to get action set handle");
-        shutdown_steamvr();
-        return false;
-    }
-    UtilityFunctions::print("[SteamVR Fingers] ✓ Action set handle obtained");
-
-    // Get skeleton action handles
-    UtilityFunctions::print("[SteamVR Fingers] Getting left hand skeleton action handle...");
-    input_error = vr_input->GetActionHandle("/actions/finger_tracking/in/left_hand_skeleton", &left_hand_skeleton_action);
-    UtilityFunctions::print(String("[SteamVR Fingers] GetActionHandle (left) returned error code: ") + String::num_int64(input_error));
-    UtilityFunctions::print(String("[SteamVR Fingers] Left hand action handle value: ") + String::num_uint64(left_hand_skeleton_action));
-
-    if (input_error != vr::VRInputError_None) {
-        UtilityFunctions::push_error("[SteamVR Fingers] ERROR: Failed to get left hand skeleton action handle");
-        shutdown_steamvr();
-        return false;
-    }
-    UtilityFunctions::print("[SteamVR Fingers] ✓ Left hand action handle obtained");
-
-    UtilityFunctions::print("[SteamVR Fingers] Getting right hand skeleton action handle...");
-    input_error = vr_input->GetActionHandle("/actions/finger_tracking/in/right_hand_skeleton", &right_hand_skeleton_action);
-    UtilityFunctions::print(String("[SteamVR Fingers] GetActionHandle (right) returned error code: ") + String::num_int64(input_error));
-    UtilityFunctions::print(String("[SteamVR Fingers] Right hand action handle value: ") + String::num_uint64(right_hand_skeleton_action));
-
-    if (input_error != vr::VRInputError_None) {
-        UtilityFunctions::push_error("[SteamVR Fingers] ERROR: Failed to get right hand skeleton action handle");
-        shutdown_steamvr();
-        return false;
-    }
-    UtilityFunctions::print("[SteamVR Fingers] ✓ Right hand action handle obtained");
-
-    // Check for connected controllers
-    UtilityFunctions::print("[SteamVR Fingers] ========================================");
-    UtilityFunctions::print("[SteamVR Fingers] Checking for connected controllers...");
-    int controller_count = 0;
-    for (uint32_t device_index = 0; device_index < vr::k_unMaxTrackedDeviceCount; device_index++) {
-        vr::ETrackedDeviceClass device_class = vr_system->GetTrackedDeviceClass(device_index);
-        if (device_class == vr::TrackedDeviceClass_Controller) {
-            controller_count++;
-            char buffer[256];
-            vr_system->GetStringTrackedDeviceProperty(device_index, vr::Prop_RenderModelName_String, buffer, sizeof(buffer));
-            UtilityFunctions::print(String("[SteamVR Fingers] Controller ") + String::num_int64(controller_count) +
-                                   " at index " + String::num_int64(device_index) +
-                                   ": " + String(buffer));
-        }
-    }
-    UtilityFunctions::print(String("[SteamVR Fingers] Total controllers found: ") + String::num_int64(controller_count));
 
     is_initialized = true;
-    steamvr_available = true;
+    xr_available = true;
 
     UtilityFunctions::print("[SteamVR Fingers] ========================================");
-    UtilityFunctions::print("[SteamVR Fingers] ✓ Initialization complete! Finger tracking is active.");
+    UtilityFunctions::print("[SteamVR Fingers] ✓ Initialization complete! Hand tracking is active.");
     UtilityFunctions::print("[SteamVR Fingers] ========================================");
 
     return true;
 }
 
-void SteamVRFingers::shutdown_steamvr() {
+void SteamVRFingers::shutdown_xr() {
     if (!is_initialized) {
         return;
     }
 
     UtilityFunctions::print("[SteamVR Fingers] Shutting down...");
 
-    if (vr_system) {
-        vr::VR_Shutdown();
-        vr_system = nullptr;
-        vr_input = nullptr;
-        vr_compositor = nullptr;
-    }
+    left_hand_tracker.unref();
+    right_hand_tracker.unref();
+    xr_server = nullptr;
 
     is_initialized = false;
-    steamvr_available = false;
+    xr_available = false;
     reset_finger_values();
 
     UtilityFunctions::print("[SteamVR Fingers] Shutdown complete");
@@ -266,194 +145,65 @@ void SteamVRFingers::reset_finger_values() {
     right_pinky_curl = 0.0f;
 }
 
-String SteamVRFingers::get_action_manifest_path() {
-    // Use project path for the action manifest (works in both editor and exported)
-    String res_path = "res://addons/steamvr_fingers/actions/action_manifest.json";
-    String manifest_path = ProjectSettings::get_singleton()->globalize_path(res_path);
-
-    // Verify the file exists
-    if (!FileAccess::file_exists(manifest_path)) {
-        UtilityFunctions::push_error(String("[SteamVR Fingers] Action manifest file not found: ") + manifest_path);
+float SteamVRFingers::get_finger_curl_from_tracker(Ref<XRHandTracker> tracker, XRHandTracker::HandJoint finger_tip, XRHandTracker::HandJoint finger_base) {
+    if (!tracker.is_valid()) {
+        return 0.0f;
     }
 
-    return manifest_path;
+    // Get joint flags to check if tracking is active
+    BitField<XRHandTracker::HandJointFlags> tip_flags = tracker->get_hand_joint_flags(finger_tip);
+    BitField<XRHandTracker::HandJointFlags> base_flags = tracker->get_hand_joint_flags(finger_base);
+
+    // Check if joints are being tracked
+    if (!tip_flags.has_flag(XRHandTracker::HAND_JOINT_FLAG_POSITION_TRACKED) ||
+        !base_flags.has_flag(XRHandTracker::HAND_JOINT_FLAG_POSITION_TRACKED)) {
+        return 0.0f;
+    }
+
+    // Get joint transforms
+    Transform3D tip_transform = tracker->get_hand_joint_transform(finger_tip);
+    Transform3D base_transform = tracker->get_hand_joint_transform(finger_base);
+
+    // Calculate distance between tip and base
+    float distance = tip_transform.origin.distance_to(base_transform.origin);
+
+    // Normalize to 0-1 range (approximate - tune these values for Index controllers)
+    // Extended finger: ~0.08m, Curled finger: ~0.02m (approximate values for Index)
+    float min_distance = 0.02f;  // Fully curled
+    float max_distance = 0.08f;  // Fully extended
+
+    float curl = 1.0f - ((distance - min_distance) / (max_distance - min_distance));
+
+    // Clamp to 0-1 range
+    return Math::clamp(curl, 0.0f, 1.0f);
 }
 
 void SteamVRFingers::update_finger_curls() {
-    if (!vr_input || !is_initialized) {
-        return;
-    }
-
-    static int frame_count = 0;
-    static bool first_update = true;
-    frame_count++;
-
-    bool should_print = first_update || (frame_count % 60 == 0);
-
-    if (first_update) {
-        UtilityFunctions::print("[SteamVR Fingers] ======== FIRST UPDATE CYCLE ========");
-    }
-
-    // Update action state
-    vr::VRActiveActionSet_t active_action_set = {};
-    active_action_set.ulActionSet = action_set_handle;
-
-    if (should_print) {
-        UtilityFunctions::print(String("[SteamVR Fingers] Calling UpdateActionState with action set handle: ") + String::num_uint64(action_set_handle));
-    }
-
-    vr::EVRInputError error = vr_input->UpdateActionState(&active_action_set, sizeof(vr::VRActiveActionSet_t), 1);
-
-    if (should_print) {
-        UtilityFunctions::print(String("[SteamVR Fingers] UpdateActionState returned error code: ") + String::num_int64(error));
-    }
-
-    if (error != vr::VRInputError_None) {
-        static bool update_error_printed = false;
-        if (!update_error_printed) {
-            UtilityFunctions::push_warning(String("[SteamVR Fingers] UpdateActionState error: ") + String::num_int64(error));
-            update_error_printed = true;
-        }
-        return;
-    }
-
-    if (should_print) {
-        UtilityFunctions::print("[SteamVR Fingers] UpdateActionState succeeded, updating finger data...");
-    }
-
     // Update left hand
-    if (should_print) {
-        UtilityFunctions::print("[SteamVR Fingers] --- Processing LEFT HAND ---");
+    if (left_hand_tracker.is_valid()) {
+        left_thumb_curl = get_finger_curl_from_tracker(left_hand_tracker,
+            XRHandTracker::HAND_JOINT_THUMB_TIP, XRHandTracker::HAND_JOINT_THUMB_METACARPAL);
+        left_index_curl = get_finger_curl_from_tracker(left_hand_tracker,
+            XRHandTracker::HAND_JOINT_INDEX_TIP, XRHandTracker::HAND_JOINT_INDEX_METACARPAL);
+        left_middle_curl = get_finger_curl_from_tracker(left_hand_tracker,
+            XRHandTracker::HAND_JOINT_MIDDLE_TIP, XRHandTracker::HAND_JOINT_MIDDLE_METACARPAL);
+        left_ring_curl = get_finger_curl_from_tracker(left_hand_tracker,
+            XRHandTracker::HAND_JOINT_RING_TIP, XRHandTracker::HAND_JOINT_RING_METACARPAL);
+        left_pinky_curl = get_finger_curl_from_tracker(left_hand_tracker,
+            XRHandTracker::HAND_JOINT_LITTLE_TIP, XRHandTracker::HAND_JOINT_LITTLE_METACARPAL);
     }
-    calculate_finger_curl_from_skeleton(left_hand_skeleton_action,
-                                        left_thumb_curl, left_index_curl, left_middle_curl,
-                                        left_ring_curl, left_pinky_curl, should_print);
 
     // Update right hand
-    if (should_print) {
-        UtilityFunctions::print("[SteamVR Fingers] --- Processing RIGHT HAND ---");
-    }
-    calculate_finger_curl_from_skeleton(right_hand_skeleton_action,
-                                        right_thumb_curl, right_index_curl, right_middle_curl,
-                                        right_ring_curl, right_pinky_curl, should_print);
-
-    if (should_print) {
-        UtilityFunctions::print(String("[SteamVR Fingers] Frame ") + String::num_int64(frame_count) + String(" - Final values:"));
-        UtilityFunctions::print(String("[SteamVR Fingers]   LEFT:  Thumb=") + String::num(left_thumb_curl, 2) +
-                               String(" Index=") + String::num(left_index_curl, 2) +
-                               String(" Middle=") + String::num(left_middle_curl, 2) +
-                               String(" Ring=") + String::num(left_ring_curl, 2) +
-                               String(" Pinky=") + String::num(left_pinky_curl, 2));
-        UtilityFunctions::print(String("[SteamVR Fingers]   RIGHT: Thumb=") + String::num(right_thumb_curl, 2) +
-                               String(" Index=") + String::num(right_index_curl, 2) +
-                               String(" Middle=") + String::num(right_middle_curl, 2) +
-                               String(" Ring=") + String::num(right_ring_curl, 2) +
-                               String(" Pinky=") + String::num(right_pinky_curl, 2));
-    }
-
-    first_update = false;
-}
-
-void SteamVRFingers::calculate_finger_curl_from_skeleton(vr::VRActionHandle_t action_handle,
-                                                          float& thumb, float& index, float& middle,
-                                                          float& ring, float& pinky, bool print_debug) {
-    if (!vr_input) {
-        if (print_debug) {
-            UtilityFunctions::push_warning("[SteamVR Fingers] vr_input is nullptr!");
-        }
-        return;
-    }
-
-    if (print_debug) {
-        UtilityFunctions::print(String("[SteamVR Fingers] Processing action handle: ") + String::num_uint64(action_handle));
-    }
-
-    // Get skeletal data
-    vr::InputSkeletalActionData_t skeletal_data = {};
-    vr::EVRInputError error = vr_input->GetSkeletalActionData(
-        action_handle,
-        &skeletal_data,
-        sizeof(skeletal_data)
-    );
-
-    if (print_debug) {
-        UtilityFunctions::print(String("[SteamVR Fingers] GetSkeletalActionData returned error code: ") + String::num_int64(error));
-        UtilityFunctions::print(String("[SteamVR Fingers] Skeletal data bActive: ") + (skeletal_data.bActive ? "TRUE" : "FALSE"));
-    }
-
-    if (error != vr::VRInputError_None) {
-        static bool error_printed = false;
-        if (!error_printed || print_debug) {
-            UtilityFunctions::push_warning(String("[SteamVR Fingers] GetSkeletalActionData error: ") + String::num_int64(error));
-            error_printed = true;
-        }
-        return;
-    }
-
-    if (!skeletal_data.bActive) {
-        static bool inactive_printed = false;
-        if (!inactive_printed || print_debug) {
-            UtilityFunctions::push_warning("[SteamVR Fingers] Skeletal action is not active - controllers may not be detected");
-            UtilityFunctions::push_warning("[SteamVR Fingers] Make sure Index controllers are turned on and tracked by SteamVR");
-            inactive_printed = true;
-        }
-        return;
-    }
-
-    if (print_debug) {
-        UtilityFunctions::print("[SteamVR Fingers] Skeletal action is ACTIVE! Getting summary data...");
-    }
-
-    // Get finger curl data (using curl summary data for simplicity)
-    vr::VRSkeletalSummaryData_t summary_data = {};
-    error = vr_input->GetSkeletalSummaryData(
-        action_handle,
-        vr::VRSummaryType_FromAnimation,
-        &summary_data
-    );
-
-    if (print_debug) {
-        UtilityFunctions::print(String("[SteamVR Fingers] GetSkeletalSummaryData returned error code: ") + String::num_int64(error));
-    }
-
-    if (error != vr::VRInputError_None) {
-        static bool summary_error_printed = false;
-        if (!summary_error_printed || print_debug) {
-            UtilityFunctions::push_warning(String("[SteamVR Fingers] GetSkeletalSummaryData error: ") + String::num_int64(error));
-            summary_error_printed = true;
-        }
-        return;
-    }
-
-    if (print_debug) {
-        UtilityFunctions::print("[SteamVR Fingers] Raw finger curl values from OpenVR:");
-        UtilityFunctions::print(String("[SteamVR Fingers]   Thumb:  ") + String::num(summary_data.flFingerCurl[vr::VRFinger_Thumb], 4));
-        UtilityFunctions::print(String("[SteamVR Fingers]   Index:  ") + String::num(summary_data.flFingerCurl[vr::VRFinger_Index], 4));
-        UtilityFunctions::print(String("[SteamVR Fingers]   Middle: ") + String::num(summary_data.flFingerCurl[vr::VRFinger_Middle], 4));
-        UtilityFunctions::print(String("[SteamVR Fingers]   Ring:   ") + String::num(summary_data.flFingerCurl[vr::VRFinger_Ring], 4));
-        UtilityFunctions::print(String("[SteamVR Fingers]   Pinky:  ") + String::num(summary_data.flFingerCurl[vr::VRFinger_Pinky], 4));
-    }
-
-    // Map finger curl values (already normalized 0.0 to 1.0)
-    thumb = summary_data.flFingerCurl[vr::VRFinger_Thumb];
-    index = summary_data.flFingerCurl[vr::VRFinger_Index];
-    middle = summary_data.flFingerCurl[vr::VRFinger_Middle];
-    ring = summary_data.flFingerCurl[vr::VRFinger_Ring];
-    pinky = summary_data.flFingerCurl[vr::VRFinger_Pinky];
-
-    // Clamp values to ensure they're in valid range
-    thumb = CLAMP(thumb, 0.0f, 1.0f);
-    index = CLAMP(index, 0.0f, 1.0f);
-    middle = CLAMP(middle, 0.0f, 1.0f);
-    ring = CLAMP(ring, 0.0f, 1.0f);
-    pinky = CLAMP(pinky, 0.0f, 1.0f);
-
-    if (print_debug) {
-        UtilityFunctions::print("[SteamVR Fingers] Clamped finger curl values:");
-        UtilityFunctions::print(String("[SteamVR Fingers]   Thumb:  ") + String::num(thumb, 4));
-        UtilityFunctions::print(String("[SteamVR Fingers]   Index:  ") + String::num(index, 4));
-        UtilityFunctions::print(String("[SteamVR Fingers]   Middle: ") + String::num(middle, 4));
-        UtilityFunctions::print(String("[SteamVR Fingers]   Ring:   ") + String::num(ring, 4));
-        UtilityFunctions::print(String("[SteamVR Fingers]   Pinky:  ") + String::num(pinky, 4));
+    if (right_hand_tracker.is_valid()) {
+        right_thumb_curl = get_finger_curl_from_tracker(right_hand_tracker,
+            XRHandTracker::HAND_JOINT_THUMB_TIP, XRHandTracker::HAND_JOINT_THUMB_METACARPAL);
+        right_index_curl = get_finger_curl_from_tracker(right_hand_tracker,
+            XRHandTracker::HAND_JOINT_INDEX_TIP, XRHandTracker::HAND_JOINT_INDEX_METACARPAL);
+        right_middle_curl = get_finger_curl_from_tracker(right_hand_tracker,
+            XRHandTracker::HAND_JOINT_MIDDLE_TIP, XRHandTracker::HAND_JOINT_MIDDLE_METACARPAL);
+        right_ring_curl = get_finger_curl_from_tracker(right_hand_tracker,
+            XRHandTracker::HAND_JOINT_RING_TIP, XRHandTracker::HAND_JOINT_RING_METACARPAL);
+        right_pinky_curl = get_finger_curl_from_tracker(right_hand_tracker,
+            XRHandTracker::HAND_JOINT_LITTLE_TIP, XRHandTracker::HAND_JOINT_LITTLE_METACARPAL);
     }
 }

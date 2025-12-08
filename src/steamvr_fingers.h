@@ -2,8 +2,9 @@
 #define STEAMVR_FINGERS_H
 
 #include <godot_cpp/classes/node.hpp>
+#include <godot_cpp/classes/xr_server.hpp>
+#include <godot_cpp/classes/xr_hand_tracker.hpp>
 #include <godot_cpp/core/class_db.hpp>
-#include <openvr.h>
 
 namespace godot {
 
@@ -11,19 +12,14 @@ class SteamVRFingers : public Node {
     GDCLASS(SteamVRFingers, Node)
 
 private:
-    // OpenVR system pointers
-    vr::IVRSystem* vr_system;
-    vr::IVRInput* vr_input;
-    vr::IVRCompositor* vr_compositor;
+    // XR tracking references
+    Ref<XRHandTracker> left_hand_tracker;
+    Ref<XRHandTracker> right_hand_tracker;
+    XRServer* xr_server;
 
     // Initialization state
     bool is_initialized;
-    bool steamvr_available;
-
-    // Action handles
-    vr::VRActionSetHandle_t action_set_handle;
-    vr::VRActionHandle_t left_hand_skeleton_action;
-    vr::VRActionHandle_t right_hand_skeleton_action;
+    bool xr_available;
 
     // Finger curl values (0.0 = open, 1.0 = closed)
     float left_thumb_curl;
@@ -40,11 +36,8 @@ private:
 
     // Helper methods
     void update_finger_curls();
-    void calculate_finger_curl_from_skeleton(vr::VRActionHandle_t action_handle,
-                                              float& thumb, float& index, float& middle,
-                                              float& ring, float& pinky, bool print_debug = false);
     void reset_finger_values();
-    String get_action_manifest_path();
+    float get_finger_curl_from_tracker(Ref<XRHandTracker> tracker, XRHandTracker::HandJoint finger_tip, XRHandTracker::HandJoint finger_base);
 
 protected:
     static void _bind_methods();
@@ -59,9 +52,9 @@ public:
     void _exit_tree() override;
 
     // Initialization methods
-    bool initialize_steamvr();
-    void shutdown_steamvr();
-    bool is_steamvr_initialized() const { return is_initialized; }
+    bool initialize_xr();
+    void shutdown_xr();
+    bool is_xr_initialized() const { return is_initialized; }
 
     // Left hand getters
     float get_left_thumb_curl() const { return left_thumb_curl; }
