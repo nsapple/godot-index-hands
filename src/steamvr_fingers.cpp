@@ -184,13 +184,13 @@ void SteamVRFingers::update_finger_curls() {
         left_thumb_curl = get_finger_curl_from_tracker(left_hand_tracker,
             XRHandTracker::HAND_JOINT_THUMB_TIP, XRHandTracker::HAND_JOINT_THUMB_METACARPAL);
         left_index_curl = get_finger_curl_from_tracker(left_hand_tracker,
-            XRHandTracker::HAND_JOINT_INDEX_TIP, XRHandTracker::HAND_JOINT_INDEX_METACARPAL);
+            XRHandTracker::HAND_JOINT_INDEX_FINGER_TIP, XRHandTracker::HAND_JOINT_INDEX_FINGER_METACARPAL);
         left_middle_curl = get_finger_curl_from_tracker(left_hand_tracker,
-            XRHandTracker::HAND_JOINT_MIDDLE_TIP, XRHandTracker::HAND_JOINT_MIDDLE_METACARPAL);
+            XRHandTracker::HAND_JOINT_MIDDLE_FINGER_TIP, XRHandTracker::HAND_JOINT_MIDDLE_FINGER_METACARPAL);
         left_ring_curl = get_finger_curl_from_tracker(left_hand_tracker,
-            XRHandTracker::HAND_JOINT_RING_TIP, XRHandTracker::HAND_JOINT_RING_METACARPAL);
+            XRHandTracker::HAND_JOINT_RING_FINGER_TIP, XRHandTracker::HAND_JOINT_RING_FINGER_METACARPAL);
         left_pinky_curl = get_finger_curl_from_tracker(left_hand_tracker,
-            XRHandTracker::HAND_JOINT_LITTLE_TIP, XRHandTracker::HAND_JOINT_LITTLE_METACARPAL);
+            XRHandTracker::HAND_JOINT_PINKY_FINGER_TIP, XRHandTracker::HAND_JOINT_PINKY_FINGER_METACARPAL);
     }
 
     // Update right hand
@@ -198,12 +198,12 @@ void SteamVRFingers::update_finger_curls() {
         right_thumb_curl = get_finger_curl_from_tracker(right_hand_tracker,
             XRHandTracker::HAND_JOINT_THUMB_TIP, XRHandTracker::HAND_JOINT_THUMB_METACARPAL);
         right_index_curl = get_finger_curl_from_tracker(right_hand_tracker,
-            XRHandTracker::HAND_JOINT_INDEX_TIP, XRHandTracker::HAND_JOINT_INDEX_METACARPAL);
+            XRHandTracker::HAND_JOINT_INDEX_FINGER_TIP, XRHandTracker::HAND_JOINT_INDEX_FINGER_METACARPAL);
         right_middle_curl = get_finger_curl_from_tracker(right_hand_tracker,
-            XRHandTracker::HAND_JOINT_MIDDLE_TIP, XRHandTracker::HAND_JOINT_MIDDLE_METACARPAL);
+            XRHandTracker::HAND_JOINT_MIDDLE_FINGER_TIP, XRHandTracker::HAND_JOINT_MIDDLE_FINGER_METACARPAL);
         right_ring_curl = get_finger_curl_from_tracker(right_hand_tracker,
-            XRHandTracker::HAND_JOINT_RING_TIP, XRHandTracker::HAND_JOINT_RING_METACARPAL);
+            XRHandTracker::HAND_JOINT_RING_FINGER_TIP, XRHandTracker::HAND_JOINT_RING_FINGER_METACARPAL);
         right_pinky_curl = get_finger_curl_from_tracker(right_hand_tracker,
-            XRHandTracker::HAND_JOINT_LITTLE_TIP, XRHandTracker::HAND_JOINT_LITTLE_METACARPAL);
+            XRHandTracker::HAND_JOINT_PINKY_FINGER_TIP, XRHandTracker::HAND_JOINT_PINKY_FINGER_METACARPAL);
     }
 }
