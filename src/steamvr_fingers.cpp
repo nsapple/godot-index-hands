@@ -170,6 +170,36 @@ bool SteamVRFingers::initialize_steamvr() {
     }
     UtilityFunctions::print("[SteamVR Fingers] ✓ Right hand action handle obtained");
 
+    // Check for connected controllers
+    UtilityFunctions::print("[SteamVR Fingers] ========================================");
+    UtilityFunctions::print("[SteamVR Fingers] Checking for connected controllers...");
+    int controller_count = 0;
+    for (uint32_t device_index = 0; device_index < vr::k_unMaxTrackedDeviceCount; device_index++) {
+        vr::ETrackedDeviceClass device_class = vr_system->GetTrackedDeviceClass(device_index);
+        if (device_class == vr::TrackedDeviceClass_Controller) {
+            controller_count++;
+            char buffer[256];
+            vr_system->GetStringTrackedDeviceProperty(device_index, vr::Prop_RenderModelName_String, buffer, sizeof(buffer));
+            UtilityFunctions::print(String("[SteamVR Fingers] Controller ") + String::num_int64(controller_count) +
+                                   " at index " + String::num_int64(device_index) +
+                                   ": " + String(buffer));
+        }
+    }
+    UtilityFunctions::print(String("[SteamVR Fingers] Total controllers found: ") + String::num_int64(controller_count));
+
+    // Check action origins (where the actions are bound)
+    UtilityFunctions::print("[SteamVR Fingers] Checking action bindings...");
+    vr::InputOriginInfo_t origins[vr::k_unMaxActionOriginCount];
+    int32_t origin_count = 0;
+
+    input_error = vr_input->GetActionOrigins(action_set_handle, left_hand_skeleton_action, origins, vr::k_unMaxActionOriginCount, &origin_count);
+    UtilityFunctions::print(String("[SteamVR Fingers] Left hand action origins: ") + String::num_int64(origin_count) +
+                           " (error code: " + String::num_int64(input_error) + ")");
+
+    input_error = vr_input->GetActionOrigins(action_set_handle, right_hand_skeleton_action, origins, vr::k_unMaxActionOriginCount, &origin_count);
+    UtilityFunctions::print(String("[SteamVR Fingers] Right hand action origins: ") + String::num_int64(origin_count) +
+                           " (error code: " + String::num_int64(input_error) + ")");
+
     is_initialized = true;
     steamvr_available = true;
 
