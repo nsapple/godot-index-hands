@@ -10,6 +10,7 @@ using namespace godot;
 SteamVRFingers::SteamVRFingers() {
     vr_system = nullptr;
     vr_input = nullptr;
+    vr_compositor = nullptr;
     is_initialized = false;
     steamvr_available = false;
 
@@ -52,6 +53,19 @@ void SteamVRFingers::_ready() {
 
 void SteamVRFingers::_process(double delta) {
     if (is_initialized && steamvr_available) {
+        // Submit dummy frames to compositor to keep skeletal input active
+        if (vr_compositor) {
+            // Create dummy texture handle (null texture is acceptable for minimal apps)
+            vr::Texture_t texture = {};
+            texture.handle = nullptr;
+            texture.eType = vr::TextureType_DirectX;
+            texture.eColorSpace = vr::ColorSpace_Auto;
+
+            // Submit to both eyes to satisfy compositor
+            vr_compositor->Submit(vr::Eye_Left, &texture);
+            vr_compositor->Submit(vr::Eye_Right, &texture);
+        }
+
         update_finger_curls();
     }
 }
@@ -89,10 +103,10 @@ bool SteamVRFingers::initialize_steamvr() {
     UtilityFunctions::print("[SteamVR Fingers] ✓ HMD is present");
 
     // Initialize OpenVR
-    // Use VRApplication_Utility for monitoring/utility apps that need input without rendering
-    UtilityFunctions::print("[SteamVR Fingers] Initializing OpenVR (VRApplication_Utility)...");
+    // Use VRApplication_Scene to get full skeletal input with compositor submission
+    UtilityFunctions::print("[SteamVR Fingers] Initializing OpenVR (VRApplication_Scene)...");
     vr::EVRInitError init_error = vr::VRInitError_None;
-    vr_system = vr::VR_Init(&init_error, vr::VRApplication_Utility);
+    vr_system = vr::VR_Init(&init_error, vr::VRApplication_Scene);
 
     if (init_error != vr::VRInitError_None) {
         UtilityFunctions::push_error(String("[SteamVR Fingers] ERROR: VR_Init failed with error code: ") + String::num_int64(init_error));
@@ -113,6 +127,16 @@ bool SteamVRFingers::initialize_steamvr() {
         return false;
     }
     UtilityFunctions::print("[SteamVR Fingers] ✓ VRInput interface obtained");
+
+    // Get compositor interface (required for skeletal input to activate)
+    UtilityFunctions::print("[SteamVR Fingers] Getting VRCompositor interface...");
+    vr_compositor = vr::VRCompositor();
+    if (!vr_compositor) {
+        UtilityFunctions::push_error("[SteamVR Fingers] ERROR: Failed to get VRCompositor interface (returned nullptr)");
+        shutdown_steamvr();
+        return false;
+    }
+    UtilityFunctions::print("[SteamVR Fingers] ✓ VRCompositor interface obtained");
 
     // Get action manifest path
     String manifest_path = get_action_manifest_path();
@@ -208,6 +232,7 @@ void SteamVRFingers::shutdown_steamvr() {
         vr::VR_Shutdown();
         vr_system = nullptr;
         vr_input = nullptr;
+        vr_compositor = nullptr;
     }
 
     is_initialized = false;

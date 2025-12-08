@@ -14,6 +14,7 @@ private:
     // OpenVR system pointers
     vr::IVRSystem* vr_system;
     vr::IVRInput* vr_input;
+    vr::IVRCompositor* vr_compositor;
 
     // Initialization state
     bool is_initialized;
