@@ -187,19 +187,6 @@ bool SteamVRFingers::initialize_steamvr() {
     }
     UtilityFunctions::print(String("[SteamVR Fingers] Total controllers found: ") + String::num_int64(controller_count));
 
-    // Check action origins (where the actions are bound)
-    UtilityFunctions::print("[SteamVR Fingers] Checking action bindings...");
-    vr::InputOriginInfo_t origins[vr::k_unMaxActionOriginCount];
-    int32_t origin_count = 0;
-
-    input_error = vr_input->GetActionOrigins(action_set_handle, left_hand_skeleton_action, origins, vr::k_unMaxActionOriginCount, &origin_count);
-    UtilityFunctions::print(String("[SteamVR Fingers] Left hand action origins: ") + String::num_int64(origin_count) +
-                           " (error code: " + String::num_int64(input_error) + ")");
-
-    input_error = vr_input->GetActionOrigins(action_set_handle, right_hand_skeleton_action, origins, vr::k_unMaxActionOriginCount, &origin_count);
-    UtilityFunctions::print(String("[SteamVR Fingers] Right hand action origins: ") + String::num_int64(origin_count) +
-                           " (error code: " + String::num_int64(input_error) + ")");
-
     is_initialized = true;
     steamvr_available = true;
 
