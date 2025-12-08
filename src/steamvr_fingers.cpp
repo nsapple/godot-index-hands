@@ -53,15 +53,25 @@ void SteamVRFingers::_ready() {
 
 void SteamVRFingers::_process(double delta) {
     if (is_initialized && steamvr_available) {
-        // Submit dummy frames to compositor to keep skeletal input active
+        // CRITICAL: Synchronize with compositor and get poses
+        // This is what keeps the VR session alive and activates input!
         if (vr_compositor) {
-            // Create dummy texture handle (null texture is acceptable for minimal apps)
+            vr::TrackedDevicePose_t poses[vr::k_unMaxTrackedDeviceCount];
+            vr::TrackedDevicePose_t gamePoses[vr::k_unMaxTrackedDeviceCount];
+
+            // WaitGetPoses is the KEY call - it synchronizes with compositor frame timing
+            // and keeps the session active so skeletal input works
+            vr::EVRCompositorError compositor_error = vr_compositor->WaitGetPoses(
+                poses, vr::k_unMaxTrackedDeviceCount,
+                gamePoses, vr::k_unMaxTrackedDeviceCount
+            );
+
+            // Now submit frames (null textures are fine for minimal overhead)
             vr::Texture_t texture = {};
             texture.handle = nullptr;
             texture.eType = vr::TextureType_DirectX;
             texture.eColorSpace = vr::ColorSpace_Auto;
 
-            // Submit to both eyes to satisfy compositor
             vr_compositor->Submit(vr::Eye_Left, &texture);
             vr_compositor->Submit(vr::Eye_Right, &texture);
         }
